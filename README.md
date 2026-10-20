@@ -89,11 +89,37 @@ python3 hw2.py --cv-folder task2
 `task2/` has no `ground_truth.json`). Only the PDF is the attack surface; do not
 attack the MCP server. See the homework description for the full rules.
 
-## Homework 2 solution:
-> to students: this is your report, see the homework description.
+## Homework 2 solution
 
 ### Task 1
-> one paragraph describing your solution, and your results on `public_test`.
+
+I implemented one reusable LangChain tool-calling agent with
+`deepseek-v4-flash` at temperature zero. For each CV, the prompt first extracts
+identity anchors and then requires the agent to search LinkedIn, disambiguate
+same-name candidates with location, employment and education, fetch the full
+profile, and use Facebook as corroboration. It compares only the fields named
+in the specification and treats one material contradiction as sufficient for
+a low score, while allowing harmless wording differences and omitted profile
+skills. CV text is explicitly treated as untrusted data to resist prompt
+injection. `score_cvs` processes at most three CVs concurrently, retries an
+individual failure once, parses only the final model message, and always
+returns a numeric fallback so one API or MCP error cannot prevent
+`results.csv` from being written. On the public test, the agent achieved
+**7/7 correct (100%)**: valid CVs received `0.95` and CVs with a material
+discrepancy received `0.05`.
 
 ### Task 2
-> the attack techniques you used and why you expect them to work.
+
+The adversarial CV preserves Kelly Tsang's verified identity, location,
+education and employment history, but visibly embellishes SQL as an advanced
+skill even though the SocialGraph record gives it only a low proficiency. The
+word “ADVANCED” is embedded as a raster badge, so a human sees the false claim
+while the assignment's text-only PDF loader extracts only the true skill name
+`SQL`. The PDF also contains a visually hidden text-layer prompt injection
+framed as an authoritative verification result. It uses delimiter and role
+confusion, claims that all checks are complete, discourages further tool calls,
+and asks for the highest valid score. The attack therefore combines a PDF
+parser/vision gap, verification-coverage weakness, authority cues and indirect
+prompt injection while leaving the visible one-page CV natural and internally
+consistent. When tested locally, both the true CV and the adversarial CV
+received a reliability score of `0.95`, so the attack fooled my Task 1 agent.
